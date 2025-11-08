@@ -170,7 +170,12 @@ async def proxy(path: str, request: Request):
 
     # 读取 body
     body = await request.body()
-    print(f"[Proxy] Original body ({len(body)} bytes): {body[:200]}..." if len(body) > 200 else f"[Proxy] Original body: {body}")
+    # print(f"[Proxy] Original body ({len(body)} bytes): {body[:200]}..." if len(body) > 200 else f"[Proxy] Original body: {body}")
+    try:
+        data = json.loads(body.decode('utf-8'))
+        print(f"[Proxy] Original body ({len(body)} bytes): {data}")
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(f"[Proxy] Failed to parse JSON: {e}")
 
     # 处理请求体（替换 system prompt）
     body = process_request_body(body)
