@@ -16,8 +16,25 @@ http_client: httpx.AsyncClient = None  # type: ignore
 async def lifespan(_: FastAPI):
     """Manage application lifespan events"""
     global http_client
+
+    # 读取代理配置
+    proxies = {}
+    http_proxy = os.getenv("HTTP_PROXY")
+    https_proxy = os.getenv("HTTPS_PROXY")
+
+    if http_proxy:
+        proxies["http://"] = http_proxy
+        print(f"HTTP Proxy configured: {http_proxy}")
+    if https_proxy:
+        proxies["https://"] = https_proxy
+        print(f"HTTPS Proxy configured: {https_proxy}")
+
     # Startup: Initialize HTTP client
-    http_client = httpx.AsyncClient(follow_redirects=False, timeout=60.0)
+    http_client = httpx.AsyncClient(
+        follow_redirects=False,
+        timeout=60.0,
+        proxies=proxies if proxies else None
+    )
     yield
     # Shutdown: Close HTTP client
     await http_client.aclose()

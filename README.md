@@ -102,14 +102,16 @@ python anthropic_proxy.py
 创建 `.env` 文件或设置环境变量：
 
 ```bash
-# API 目标地址（默认：https://anyrouter.top）
+# API 目标地址（默认：https://anyrouter.top）或使用反代地址
 API_BASE_URL=https://anyrouter.top
-# 或使用备用地址
-# API_BASE_URL=https://q.quuvv.cn
 
 # System Prompt 替换（可选）
 # 替换请求体中 system 数组的第一个元素的 text 内容
 SYSTEM_PROMPT_REPLACEMENT="You are Claude Code, Anthropic's official CLI for Claude."
+
+# 如果需要通过代理访问，请取消下面两行的注释并设置代理地址
+# HTTP_PROXY=http://127.0.0.1:7890
+# HTTPS_PROXY=http://127.0.0.1:7890
 ```
 
 ### 自定义请求头（可选）
