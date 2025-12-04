@@ -171,7 +171,12 @@ def filter_request_headers(headers: Iterable[tuple]) -> dict:
 def filter_response_headers(headers: Iterable[tuple]) -> dict:
     out = {}
     for k, v in headers:
-        if k.lower() in HOP_BY_HOP_HEADERS:
+        lk = k.lower()
+        if lk in HOP_BY_HOP_HEADERS:
+            continue
+        # 移除 Content-Length，避免流式响应时长度不匹配
+        # StreamingResponse 会自动处理传输编码
+        if lk == "content-length":
             continue
         out[k] = v
     return out
