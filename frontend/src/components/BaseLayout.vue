@@ -43,6 +43,31 @@
           </button>
         </div>
 
+        <!-- 当前代理服务 -->
+        <div class="px-4 pt-4">
+          <button
+            type="button"
+            class="proxy-copy-btn w-full text-left px-3 py-2 rounded-lg bg-orange-50 text-orange-800 dark:bg-orange-900/40 dark:text-orange-100 border border-orange-200/70 dark:border-orange-700/60 text-xs leading-relaxed break-all transition-colors hover:bg-orange-100 dark:hover:bg-orange-900/60 outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none active:outline-none active:ring-0 active:shadow-none"
+            @click="copyProxyUrl"
+            @keydown.enter.prevent="copyProxyUrl"
+            @keydown.space.prevent="copyProxyUrl"
+            title="点击复制代理服务地址"
+          >
+            <div class="text-[11px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-200">
+              代理服务地址
+            </div>
+            <div class="mt-1 flex items-center space-x-2">
+              <span class="truncate">{{ proxyBaseUrl }}</span>
+              <span
+                v-if="copied"
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-200 text-orange-800 dark:bg-orange-800 dark:text-orange-50"
+              >
+                已复制
+              </span>
+            </div>
+          </button>
+        </div>
+
         <!-- 导航菜单 -->
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           <RouterLink
@@ -143,10 +168,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
-// 组件和状态
 const route = useRoute()
-
-// 响应式状态
 const sidebarOpen = ref(false)
 const isOnline = ref(true)
 
@@ -171,6 +193,36 @@ const updateDisplayOnlineStatus = (online: boolean, delay: number = 0) => {
 
 // 计算属性
 const currentPath = computed(() => route.path)
+const proxyBaseUrl = computed(() => {
+  if (typeof window === 'undefined') return '本机服务'
+  return window.location.origin
+})
+const copied = ref(false)
+
+const copyProxyUrl = async () => {
+  const text = proxyBaseUrl.value
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'absolute'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 1200)
+  } catch (err) {
+    console.error('[BaseLayout] 复制失败:', err)
+  }
+}
 
 // 菜单项配置
 const menuItems = [
@@ -319,5 +371,18 @@ onUnmounted(() => {
 
 .dark .overflow-y-auto::-webkit-scrollbar-thumb:hover {
   background-color: rgba(75, 85, 99, 0.7);
+}
+
+/* 代理服务复制按钮去除默认聚焦边框/阴影 */
+.proxy-copy-btn,
+.proxy-copy-btn:focus,
+.proxy-copy-btn:focus-visible,
+.proxy-copy-btn:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.proxy-copy-btn::-moz-focus-inner {
+  border: 0;
 }
 </style>
