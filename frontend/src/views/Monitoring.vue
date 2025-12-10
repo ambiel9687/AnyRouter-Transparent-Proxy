@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4 lg:p-6 space-y-6">
+  <div class="space-y-6">
     <!-- 页面标题 -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div>
@@ -20,19 +20,21 @@
         </select>
         <button
           @click="refreshData"
-          class="relative px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-300 flex items-center min-w-[80px] justify-center"
+          :disabled="isLoading"
+          aria-label="刷新"
+          class="relative h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <!-- 刷新图标 -->
           <svg
-            class="h-4 w-4 text-white transition-opacity duration-300"
+            :class="[
+              'h-5 w-5 text-white transition-transform duration-500',
+              isLoading ? 'animate-spin' : ''
+            ]"
             fill="currentColor"
             viewBox="0 0 20 20"
           >
             <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
           </svg>
-
-          <!-- 按钮文字 -->
-          <span class="ml-2 text-sm font-medium">刷新</span>
         </button>
       </div>
     </div>

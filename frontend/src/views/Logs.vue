@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col p-4 lg:p-6 space-y-6">
+  <div class="h-full flex flex-col space-y-6">
     <!-- 页面标题和控制栏 -->
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
       <div>
@@ -170,7 +170,12 @@
               :key="log._key"
               :ref="el => setLogRef(log._key, el as HTMLDivElement)"
               :style="{ position: 'absolute', top: `${log._position}px`, width: '100%' }"
-              class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700"
+              class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer focus:outline-none"
+              role="button"
+              tabindex="0"
+              @click="toggleLogDetail(log)"
+              @keydown.enter.prevent="toggleLogDetail(log)"
+              @keydown.space.prevent="toggleLogDetail(log)"
             >
               <!-- 日志条目头部 -->
               <div class="flex items-start justify-between mb-2">
@@ -194,22 +199,17 @@
                     {{ log.path }}
                   </span>
                 </div>
-                <button
-                  @click="toggleLogDetail(log)"
-                  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                <svg
+                  :class="[
+                    'w-4 h-4 transform transition-transform text-gray-400 dark:text-gray-300',
+                    log._expanded ? 'rotate-180' : ''
+                  ]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <svg
-                    :class="[
-                      'w-4 h-4 transform transition-transform',
-                      log._expanded ? 'rotate-180' : ''
-                    ]"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
 
               <!-- 日志消息 -->
