@@ -5,7 +5,7 @@ AnyRouter 透明代理 - 主应用模块
 """
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse
 from contextlib import asynccontextmanager
 from starlette.background import BackgroundTask
 import httpx
@@ -162,6 +162,20 @@ async def health_check():
         "status": "healthy",
         "service": "anthropic-transparent-proxy"
     }
+
+
+@app.api_route("/", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
+async def root_redirect(request: Request):
+    """
+    根路径：浏览器访问时重定向到 /admin，API 访问保持代理行为
+    """
+    accept_header = request.headers.get("accept", "")
+    wants_html = "text/html" in accept_header or "application/xhtml+xml" in accept_header
+
+    if wants_html:
+        return RedirectResponse(url="/admin", status_code=307)
+
+    return await proxy("", request)
 
 
 # ===== 主代理逻辑 =====
