@@ -182,14 +182,14 @@
           <div
             v-for="request in recentRequests"
             :key="request.request_id"
-            :class="['p-3 rounded-lg', getStatusContainerClass(request.status_code, request.status)]"
+            :class="['p-3 rounded-lg', getStatusContainerClass(request.status_code)]"
           >
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-3">
                 <div
                   :class="[
                     'w-2 h-2 rounded-full',
-                    getStatusDotClass(request.status_code, request.status)
+                    getStatusDotClass(request.status_code)
                   ]"
                 />
                 <div class="flex items-center space-x-2">
@@ -218,15 +218,15 @@
                 <span
                   :class="[
                     'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                    getStatusBadgeClass(request.status_code, request.status)
+                    getStatusBadgeClass(request.status_code)
                   ]"
                 >
-                  {{ formatStatusLabel(request.status_code, request.status) }}
+                  {{ formatStatusLabel(request.status_code) }}
                 </span>
               </div>
             </div>
             <!-- 错误信息 -->
-            <div v-if="isErrorStatus(request.status_code, request.status) && request.error" class="mt-2 pl-5">
+            <div v-if="isErrorStatus(request.status_code) && request.error" class="mt-2 pl-5">
               <p class="text-xs text-red-600 dark:text-red-400 font-mono">
                 {{ request.error }}
               </p>

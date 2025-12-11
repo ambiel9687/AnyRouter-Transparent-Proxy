@@ -26,12 +26,8 @@ const containerClassByTone: Record<StatusTone, string> = {
   info: 'bg-gray-50 dark:bg-gray-700'
 }
 
-const getStatusTone = (statusCode?: number, statusText?: string): StatusTone => {
-  if (typeof statusCode !== 'number') {
-    if (statusText === 'success') return 'success'
-    if (statusText === 'error') return 'error'
-    return 'info'
-  }
+const getStatusTone = (statusCode?: number): StatusTone => {
+  if (typeof statusCode !== 'number') return 'info'
   if (statusCode >= 200 && statusCode < 300) return 'success'
   if (statusCode >= 300 && statusCode < 400) return 'redirect'
   if (AUTH_STATUS_CODES.has(statusCode)) return 'auth'
@@ -39,27 +35,22 @@ const getStatusTone = (statusCode?: number, statusText?: string): StatusTone => 
   return 'info'
 }
 
-export const isErrorStatus = (statusCode?: number, statusText?: string): boolean => {
-  if (typeof statusCode === 'number') {
-    return statusCode >= 400
-  }
-  return statusText === 'error'
+export const isErrorStatus = (statusCode?: number): boolean => {
+  return typeof statusCode === 'number' && statusCode >= 400
 }
 
-export const getStatusBadgeClass = (statusCode?: number, statusText?: string): string => {
-  return badgeClassByTone[getStatusTone(statusCode, statusText)]
+export const getStatusBadgeClass = (statusCode?: number): string => {
+  return badgeClassByTone[getStatusTone(statusCode)]
 }
 
-export const getStatusDotClass = (statusCode?: number, statusText?: string): string => {
-  return dotClassByTone[getStatusTone(statusCode, statusText)]
+export const getStatusDotClass = (statusCode?: number): string => {
+  return dotClassByTone[getStatusTone(statusCode)]
 }
 
-export const getStatusContainerClass = (statusCode?: number, statusText?: string): string => {
-  return containerClassByTone[getStatusTone(statusCode, statusText)]
+export const getStatusContainerClass = (statusCode?: number): string => {
+  return containerClassByTone[getStatusTone(statusCode)]
 }
 
-export const formatStatusLabel = (statusCode?: number, statusText?: string): string => {
-  if (typeof statusCode === 'number') return `${statusCode}`
-  if (statusText) return statusText
-  return '--'
+export const formatStatusLabel = (statusCode?: number): string => {
+  return typeof statusCode === 'number' ? `${statusCode}` : '--'
 }
