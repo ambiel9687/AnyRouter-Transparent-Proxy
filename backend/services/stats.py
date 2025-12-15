@@ -1,7 +1,7 @@
 """
 统计服务模块
 
-负责收集和管理代理服务的统计数据，包括请求统计、性能指标、错误日志和实时日志流
+负责收集和管理代理服务的统计数据，包括请求统计、性能指标和错误日志
 """
 
 import asyncio
@@ -9,9 +9,6 @@ import time
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Optional, Tuple
-
-from ..config import LOG_PERSISTENCE_ENABLED, LOG_STORAGE_PATH, LOG_RETENTION_DAYS, LOG_DAILY_LIMIT
-from .log_storage import LogStorage
 
 # ===== 统计数据收集器 =====
 # 全局统计数据（线程安全）
@@ -43,24 +40,6 @@ time_window_stats = {
     "errors_per_minute": deque(maxlen=1440),
     "bytes_per_minute": deque(maxlen=1440)
 }
-
-# 日志流相关
-log_subscribers = set()  # SSE连接订阅者
-log_queue = asyncio.Queue(maxsize=1000)  # 日志消息队列
-
-# 持久化存储
-log_storage: Optional[LogStorage] = None
-if LOG_PERSISTENCE_ENABLED:
-    try:
-        log_storage = LogStorage(
-            storage_path=LOG_STORAGE_PATH,
-            daily_limit=LOG_DAILY_LIMIT,
-            retention_days=LOG_RETENTION_DAYS
-        )
-        print(f"[Log Storage] Persistence enabled, path: {LOG_STORAGE_PATH}, retention: {LOG_RETENTION_DAYS} days")
-    except Exception as e:
-        print(f"[Log Storage] Failed to init: {e}")
-        log_storage = None
 
 
 async def record_request_start(path: str, method: str, bytes_sent: int) -> str:
@@ -174,134 +153,6 @@ async def update_time_window_stats():
             "time": current_minute_timestamp,  # 使用 Unix 时间戳（秒级）
             "count": minute_bytes
         })
-
-
-async def persist_log_entry(log_entry: dict) -> None:
-    """写入持久化存储（可配置关闭）"""
-    if not log_storage:
-        return
-    try:
-        await log_storage.write_log(log_entry)
-    except Exception as e:
-        print(f"[Log Storage] Failed to write log: {e}")
-
-
-async def get_recent_persisted_logs(limit: int = 20):
-    if not log_storage:
-        return []
-    try:
-        return await log_storage.get_recent_logs(limit=limit)
-    except Exception as e:
-        print(f"[Log Storage] Failed to load recent logs: {e}")
-        return []
-
-
-async def query_persisted_logs(
-    start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None,
-    level: Optional[str] = None,
-    path_filter: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0
-):
-    if not log_storage:
-        return [], 0
-    try:
-        filters = {}
-        if level:
-            filters["level"] = level
-        if path_filter:
-            filters["path_filter"] = path_filter
-        return await log_storage.query_logs(
-            start_time=start_time,
-            end_time=end_time,
-            filters=filters,
-            limit=limit,
-            offset=offset
-        )
-    except Exception as e:
-        print(f"[Log Storage] Failed to query logs: {e}")
-        return [], 0
-
-
-async def clear_all_logs():
-    """清空持久化与内存队列"""
-    if log_storage:
-        try:
-            await log_storage.clear_all()
-        except Exception as e:
-            print(f"[Log Storage] Failed to clear files: {e}")
-
-    # 清空内存日志队列
-    try:
-        while not log_queue.empty():
-            log_queue.get_nowait()
-            log_queue.task_done()
-    except Exception:
-        pass
-
-
-async def broadcast_log_message(level: str, message: str, path: str = "", request_id: str = "", response_content: str = None):
-    """广播日志消息到所有订阅者"""
-    current_time = time.time()
-    log_entry = {
-        "timestamp": current_time,
-        "level": level,
-        "message": message,
-        "path": path,
-        "request_id": request_id,
-        "formatted_time": datetime.fromtimestamp(current_time).strftime("%Y-%m-%d %H:%M:%S"),
-        "response_content": response_content
-    }
-
-    try:
-        # 添加到队列（如果队列满了，丢弃最旧的消息）
-        if log_queue.full():
-            await log_queue.get_nowait()
-        await log_queue.put(log_entry)
-
-        # 广播给订阅者
-        for subscriber_queue in log_subscribers.copy():
-            try:
-                await subscriber_queue.put(log_entry)
-            except Exception:
-                # 订阅者断开连接，移除
-                log_subscribers.discard(subscriber_queue)
-
-    except Exception as e:
-        print(f"[Log Stream] Failed to broadcast log message: {e}")
-
-    await persist_log_entry(log_entry)
-
-
-async def log_producer():
-    """日志生产者 - 将代理函数的日志转换为流式日志"""
-    # 这里可以根据需要添加更多日志来源
-    while True:
-        try:
-            # 定期发送系统状态日志
-            await asyncio.sleep(30)  # 每30秒发送一次系统状态
-            async with stats_lock:
-                current_requests = request_stats["total_requests"]
-                current_errors = request_stats["failed_requests"]
-
-            system_log = {
-                "timestamp": time.time(),
-                "level": "INFO",
-                "message": f"System status: {current_requests} total requests, {current_errors} errors",
-                "type": "system_status",
-                "formatted_time": datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d %H:%M:%S")
-            }
-
-            for subscriber_queue in log_subscribers.copy():
-                try:
-                    await subscriber_queue.put(system_log)
-                except Exception:
-                    log_subscribers.discard(subscriber_queue)
-
-        except Exception as e:
-            print(f"[Log Stream] Error in log producer: {e}")
-            await asyncio.sleep(5)  # 出错后等待5秒再继续
 
 
 async def periodic_stats_update():
