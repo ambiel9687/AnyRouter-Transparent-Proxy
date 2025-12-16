@@ -43,14 +43,27 @@ time_window_stats = {
 
 
 async def record_request_start(path: str, method: str, bytes_sent: int) -> str:
-    """记录请求开始，返回请求ID"""
+    """记录请求开始，返回请求ID，并立即添加到 recent_requests"""
     request_id = f"{int(time.time() * 1000)}-{id(asyncio.current_task())}"
+    current_time = time.time()
 
     async with stats_lock:
         request_stats["total_requests"] += 1
         request_stats["total_bytes_sent"] += bytes_sent
         path_stats[path]["count"] += 1
         path_stats[path]["bytes"] += bytes_sent
+
+        # 立即添加到 recent_requests（状态为 pending）
+        recent_requests.append({
+            "request_id": request_id,
+            "path": path,
+            "method": method,
+            "status": "pending",  # 标记为进行中
+            "status_code": None,  # 尚未完成，无状态码
+            "bytes": 0,
+            "response_time": 0,
+            "timestamp": current_time
+        })
 
     return request_id
 
@@ -63,8 +76,18 @@ async def record_request_success(
     response_time: float,
     status_code: int
 ):
-    """记录成功请求"""
+    """记录成功请求，更新已存在的记录"""
     async with stats_lock:
+        existing_req = None
+        for req in reversed(recent_requests):
+            if req["request_id"] == request_id:
+                existing_req = req
+                break
+
+        # 如果请求已被标记为超时或错误，直接跳过，避免成功与失败双计数
+        if existing_req and (existing_req.get("status_code") == 504 or existing_req.get("error")):
+            return
+
         request_stats["successful_requests"] += 1
         request_stats["total_bytes_received"] += bytes_received
 
@@ -73,16 +96,27 @@ async def record_request_success(
         count = path_stats[path]["count"]
         path_stats[path]["avg_response_time"] = (current_avg * (count - 1) + response_time) / count
 
-        # 记录最近请求
-        recent_requests.append({
-            "request_id": request_id,
-            "path": path,
-            "method": method,
-            "status_code": status_code,
-            "bytes": bytes_received,
-            "response_time": response_time,
-            "timestamp": time.time()
-        })
+        # 查找并更新 recent_requests 中的记录
+        found = False
+        if existing_req:
+            existing_req["status"] = "completed"
+            existing_req["status_code"] = status_code
+            existing_req["bytes"] = bytes_received
+            existing_req["response_time"] = response_time
+            found = True
+
+        # 如果没找到（可能被 deque 清除了），则添加新记录
+        if not found:
+            recent_requests.append({
+                "request_id": request_id,
+                "path": path,
+                "method": method,
+                "status": "completed",
+                "status_code": status_code,
+                "bytes": bytes_received,
+                "response_time": response_time,
+                "timestamp": time.time()
+            })
 
 
 async def record_request_error(
@@ -94,8 +128,18 @@ async def record_request_error(
     response_content: str = None,
     status_code: int | None = None
 ):
-    """记录请求错误"""
+    """记录请求错误，更新已存在的记录"""
     async with stats_lock:
+        existing_req = None
+        for req in reversed(recent_requests):
+            if req["request_id"] == request_id:
+                existing_req = req
+                break
+
+        # 如果请求已被标记为成功，直接跳过，避免成功与失败双计数
+        if existing_req and existing_req.get("status_code") is not None and existing_req.get("status_code", 0) < 400 and not existing_req.get("error"):
+            return
+
         request_stats["failed_requests"] += 1
         path_stats[path]["errors"] += 1
 
@@ -110,17 +154,29 @@ async def record_request_error(
             "response_time": response_time
         })
 
-        # 记录最近请求
-        recent_requests.append({
-            "request_id": request_id,
-            "path": path,
-            "method": method,
-            "status_code": status_code,
-            "error": error_msg,
-            "response_content": response_content,
-            "response_time": response_time,
-            "timestamp": time.time()
-        })
+        # 查找并更新 recent_requests 中的记录
+        found = False
+        if existing_req:
+            existing_req["status"] = "completed"
+            existing_req["status_code"] = status_code
+            existing_req["error"] = error_msg
+            existing_req["response_content"] = response_content
+            existing_req["response_time"] = response_time
+            found = True
+
+        # 如果没找到，则添加新记录
+        if not found:
+            recent_requests.append({
+                "request_id": request_id,
+                "path": path,
+                "method": method,
+                "status": "completed",
+                "status_code": status_code,
+                "error": error_msg,
+                "response_content": response_content,
+                "response_time": response_time,
+                "timestamp": time.time()
+            })
 
 
 async def update_time_window_stats():
@@ -228,3 +284,42 @@ async def get_time_filtered_data(start_time: float = None, end_time: float = Non
         }
 
     return filtered_requests, filtered_errors, filtered_time_series
+
+
+async def cleanup_stale_requests():
+    """清理超时的进行中请求（后台任务）"""
+    TIMEOUT_SECONDS = 300  # 5 分钟超时
+
+    while True:
+        try:
+            await asyncio.sleep(60)  # 每 60 秒检查一次
+
+            current_time = time.time()
+            stale_requests = []  # 收集超时请求，统一记录错误
+
+            async with stats_lock:
+                # 遍历并标记超时的 pending 请求
+                for req in list(recent_requests):
+                    if req.get("status") == "pending":
+                        age = current_time - req["timestamp"]
+                        if age > TIMEOUT_SECONDS:
+                            stale_requests.append({
+                                "request_id": req["request_id"],
+                                "path": req["path"],
+                                "method": req["method"],
+                                "response_time": age
+                            })
+
+            for req in stale_requests:
+                await record_request_error(
+                    req["request_id"],
+                    req["path"],
+                    req["method"],
+                    f"请求超时（{req['response_time']:.0f}秒）",
+                    response_time=req["response_time"],
+                    status_code=504
+                )
+                print(f"[Stats] Request {req['request_id']} timed out after {req['response_time']:.0f}s")
+
+        except Exception as e:
+            print(f"[Stats] Failed to cleanup stale requests: {e}")

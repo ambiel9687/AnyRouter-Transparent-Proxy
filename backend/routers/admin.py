@@ -211,7 +211,7 @@ async def get_stats(
             r for r in normalized_requests
             if (
                 (r.get("status_code") is not None and r.get("status_code", 0) < 400) or
-                (r.get("status_code") is None and r.get("status") != "error")
+                (r.get("status_code") is None and r.get("status") not in ("error", "pending"))
             )
         ])
         error_filtered_requests = len([

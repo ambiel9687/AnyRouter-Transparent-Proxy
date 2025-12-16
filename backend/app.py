@@ -29,7 +29,8 @@ from .services.stats import (
     record_request_start,
     record_request_success,
     record_request_error,
-    periodic_stats_update
+    periodic_stats_update,
+    cleanup_stale_requests
 )
 
 # 导入代理服务
@@ -56,6 +57,9 @@ async def lifespan(_: FastAPI):
 
     # 启动定时统计更新任务
     stats_task = asyncio.create_task(periodic_stats_update())
+
+    # 启动超时请求清理任务
+    cleanup_task = asyncio.create_task(cleanup_stale_requests())
 
     # 输出应用配置信息（只在 worker 进程启动时输出一次）
     print("=" * 60)
@@ -120,9 +124,15 @@ async def lifespan(_: FastAPI):
 
     # Shutdown: Close HTTP client and stop background tasks
     stats_task.cancel()
+    cleanup_task.cancel()
 
     try:
         await stats_task
+    except asyncio.CancelledError:
+        pass
+
+    try:
+        await cleanup_task
     except asyncio.CancelledError:
         pass
 
